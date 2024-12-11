@@ -68,7 +68,60 @@ int main(int argc, char** argv)
 		PRINT_ERROR("Failed to read file\n");
 		return 1;
 	}
+	// when we find, first row, position x+7 is message size pixel
+	// position x+7 y-2 is the last pixel, so read in loop
+	// made 3 threads, one to read every chanel, 4th one maybe to keep rest in order
+	// collect chars and display message
 	struct bmp_header* header = (struct bmp_header*) file_content.data;
-	printf("signature: %.2s\nfile_size: %u\ndata_offset: %u\ninfo_header_size: %u\nwidth: %u\nheight: %u\nplanes: %i\nbit_per_px: %i\ncompression_type: %u\ncompression_size: %u\n", header->signature, header->file_size, header->data_offset, header->info_header_size, header->width, header->height, header->number_of_planes, header->bit_per_pixel, header->compression_type, header->compressed_image_size);
+	printf("signature: %.2s\nfile_size: %u\ndata_offset: %u\ninfo_header_size: %u\nwidth: %u\nheight: %u\nplanes: %i\nbit_per_px: %i\ncompression_type: %u\ncompression_size: %u\n", \
+		header->signature, header->file_size, header->data_offset, header->info_header_size, header->width, header->height, header->number_of_planes, header->bit_per_pixel, header->compression_type, header->compressed_image_size);
+	//function to loop through bpm file, we are lookin for a 7 pixels in a row (127, 188, 127, 0), returning header with x, y in bpm file position position
+	u8 patern_pix[] = {127, 188, 217, 0};
+	u8* pixel_data = (u8*) file_content.data + header->data_offset;
+	size_t n_y = 0;
+	size_t n_x = 0;
+	for (size_t y = 0; y < header->height; y++)
+	{
+		for (size_t x = 0; x < header->width; x++)
+        {
+            u8* pixel = pixel_data + (y * header->width + x) * (header->bit_per_pixel / 8);
+            // printf("Pixel at (%zu, %zu): B=%u, G=%u, R=%u\n", y, x, pixel[0], pixel[1], pixel[2]);
+            if (pixel[0] == patern_pix[0] && pixel[1] == patern_pix[1] && pixel[2] == patern_pix[2])
+            {
+				// printf("Start of pattern found at (%zu, %zu)\n", y, x);
+				n_y = y;
+				n_x = x + 1;
+			}
+			
+		}
+	}
+	u8* pixel_mark = pixel_data + (n_y * header->width + n_x) * (header->bit_per_pixel / 8);
+	// printf("%u blue mark, %u red mark\n", pixel_mark[0], pixel_mark[2]);
+	size_t size = pixel_mark[0] + pixel_mark[2];
+ 	char messagge[size];
+	n_y -=2;
+	n_x -=5;
+	// printf("Start of printing (%zu, %zu)\n", n_y, n_x);
+	u8* pixel_mess;
+	for(size_t k = 0; k < size; k++)
+	{
+		for (size_t j = 0; j < 6; j++)
+		{
+			pixel_mess = pixel_data + (n_y * header->width + n_x) * (header->bit_per_pixel / 8);
+			// printf("Start of printing (%zu, %zu)\n", n_y, n_x);
+			for (size_t i = 0; i < 3; i++)
+			{
+				char c = pixel_mess[i%3];
+				write(1, &c, 1);
+				k++;
+				if (k >= size)
+				break;
+			}
+			n_x++;
+		}
+		n_y++;
+	}
+					
 	return 0;
+
 }
